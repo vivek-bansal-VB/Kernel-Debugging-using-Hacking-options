@@ -1,0 +1,17 @@
+HOW TO BUILD THE MODULES:
+1. Do make in CSE-506 folder. It will build all the modules present in CSE-506 directory.
+
+HOW TO LOAD THE MODULES:
+1. sh install_module.sh <module_no>
+   where <module_no> is the module number to load.
+   For example: If we want to load module 3, then command should be: 
+	sh install_module.sh 3
+
+HOW TO RUN A PARTICULAR MODULE:
+1. ./xhw3 <module_no>
+   for example: If we want to run our syscall for module 5, then command should be:
+	./xhw3 5
+
+
+
+----------------------------------------------------END-------------------------------------------------------------------

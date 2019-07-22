@@ -1,0 +1,27 @@
+SYSCALL for using sleep inside atomic section
+---------------------------------------------------------------------------
+
+CONFIG_DEBUG_ATOMIC_SLEEP:
+-------------------------
+
+When disabled , if we use functions like copy_from_user or copy_to_user which
+actually use sleep in their implementation, wont throw any error inside a spinlock.
+However spinlock is a very simple, exclusive lock which will keep on waiting
+until the work has been done. We don't perform sleep operations inside a spinlock.
+But , when this option is disabled we can see the error message in dmesg.
+
+
+MESSAGE:
+-----------------
+
+[ 2438.311727] BUG: sleeping function called from invalid context at mm/slab.h:421
+[ 2438.311996] in_atomic(): 1, irqs_disabled(): 0, pid: 7458, name: xhw3
+[ 2438.312237] 1 lock held by xhw3/7458:
+[ 2438.312448]  #0: 000000002e1e6723 (lock#6){....}, at: bug3+0x11/0x86 [sys_bug3]
+[ 2438.312733] CPU: 0 PID: 7458 Comm: xhw3 Tainted: G           OE     4.20.6+ #19
+[ 2438.313000] Hardware name: VMware, Inc. VMware Virtual Platform/440BX Desktop Reference Platform, BIOS 6.00 09/21/2015
+
+
+HOW TO RUN?                                                                     
+----------------------                                                                              
+Now, once the above setup is ready. Now go to your CSE-506 folder, and do a make. This will generate all the ko file necessary. Then run this command: sh install_module.sh 3. 3 here is the argument; which signifies that this is the bug3 (sleep inside atomic section). Now the sys_bug3 module is inserted in our kernel. Now trigger this system call by calling the xhw3 user space program by running ./xhw3 3. 3 is the argument passed here.

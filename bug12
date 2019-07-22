@@ -1,0 +1,75 @@
+BUG9 - SYSCALL TO HIT VMAP STACK GUARD PAGE
+-------------------------------------------
+
+Config: CONFIG_HARDENED_USERCOPY
+-------
+
+Location of Config: Security Option --> Harden Memory copy between kernel and user space
+------------------
+
+Kernel Documentaion: This option checks for obviously wrong memory regions when copying memory to/from the kernel (via copy_to_user() and copy_from_user() functions) by rejecting memory ranges that are larger than the specified heap object, span multiple separately allocated pages, are not on the process stack, or are part of the kernel text. This kills entire classes of heap overflow exploits and similar kernel memory exposures.
+
+
+
+Approach:
+--------
+	- Tried copy a char buffer passed from user into a kernel spac char pointer set to NULL.
+	- Enabling this feature sends a message from syslog as shown below:
+	  " kernel:usercopy: Kernel memory overwrite attempt detected to null address (offset 0, size 9)!"
+	- These tests ensure that the address range doesn't wrap past the end of memory, that the kernel-space pointer is not null, and that it does not point to a zero-length kmalloc() allocation (i.e. ZERO_OR_NULL_PTR() is false). Also, if the address range overlaps the kernel text (code) segment, it is rejected.
+
+
+
+Bug File Location: CSE-506/sys_bug12.c
+-----------------
+
+How to Run?
+----------
+        - Run make in CSE-506 directory
+        - Run CSE-506/scripts/bug12.sh
+        - If you dont want to run the given script, after make you can install the module using "sh install_module.sh 12" and then run user programe "./xhw3 12", it will call sys_bug12() which implements this bug.
+
+Code in kernel to handle this config:
+-------------------------------------
+
+The code given below is defined in "/mm/slub.c". 
+
+ifdef CONFIG_HARDENED_USERCOPY
+void __check_heap_object(const void *ptr, unsigned long n, struct page *page,
+			 bool to_user)
+{
+	struct kmem_cache *s;
+	unsigned int offset;
+	size_t object_size;
+
+	s = page->slab_cache;
+	
+	if (ptr < page_address(page))
+		usercopy_abort("SLUB object not in SLUB page?!", NULL,
+			       to_user, 0, n);
+
+	offset = (ptr - page_address(page)) % s->size;
+
+	if (kmem_cache_debug(s) && s->flags & SLAB_RED_ZONE) {
+		if (offset < s->red_left_pad)
+			usercopy_abort("SLUB object in left red zone",
+				       s->name, to_user, offset, n);
+		offset -= s->red_left_pad;
+	}
+
+	if (offset >= s->useroffset &&
+	    offset - s->useroffset <= s->usersize &&
+	    n <= s->useroffset - offset + s->usersize)
+		return;
+	object_size = slab_ksize(s);
+	if (usercopy_fallback &&
+	    offset <= object_size && n <= object_size - offset) {
+		usercopy_warn("SLUB object", s->name, to_user, offset, n);
+		return;
+	}
+
+	usercopy_abort("SLUB object", s->name, to_user, offset, n);
+}
+#endif /* CONFIG_HARDENED_USERCOPY */
+
+Routines up in the stack that calls the above routines, issues a pr_Emerg() with the message as received in this bug.

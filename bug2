@@ -1,0 +1,89 @@
+BUG2 - SYSCALL TO DETECT SOFT LOCKUP
+-----------------------------------
+
+Config: CONFIG_SOFTLOCKUP_DETECTOR
+-------
+
+Location of Config: Kernel Hacking --> Deteck Lockups and Hangs --> Detect Soft Lockups 
+------------------
+
+Kernel Documentaion: Softlockups are bugs that cause the kernel to loop in kernel mode for more than 20 seconds, without giving other tasks a chance to run. The current stack trace is displayed upon
+-------------------- detection and the system will stay locked up.
+
+Approach:
+--------
+	- I get current time before start of a loop using ktime_get_real_seconds().
+	- For every iteration I check if the difference of current time and start time has exceeded a sudden threshold.
+	- Message displayed on Soft Lockup:
+		"kernel:watchdog: BUG: soft lockup - CPU#1 stuck for 22s!"
+	- Although, the time it prints is 22s and is not same as softlockup threshold=20s, because in the menthos is_softlockup() it check if the current time is greater than touch time + softlockup threshold. Also, the function that calls to get the current time returns seconds approcimately, using following code snippet "running_clock() >> 30LL". Thus, time displayed by syslog is little greater than the softlockup threshold.
+	- Also, this syslog doesn't get relayed if the kernel code runs exactly for the time it displays in the message. It is so because, after getting the time to be shown in message from is_softlockup(), before relaying out the message it again checks if the current process is still hung or terminated.
+
+Bug File Location: CSE-506/sys_bug2.c
+-----------------
+
+How to Run?
+----------
+        - Run make in CSE-506 directory
+        - Run CSE-506/scripts/bug2.sh
+        - If you dont want to run the given script, after make you can install the module using "sh install_module.sh 2" and then run user programe "./xhw3 2", it will call sys_bug2() which implements this bug.
+
+Code in kernel to handle this config:
+-------------------------------------
+
+This method returns the time to be displayed on syslog message if it has exceeded the soft lockup threshold, otherwise returns 0. The variable SOFT_WATCHDOG_ENABLED is set if CCONFIG_SOFTLOCKUP_DETECTOR is set.
+
+
+	static int is_softlockup(unsigned long touch_ts)
+	{
+		unsigned long now = get_timestamp();
+
+		if ((watchdog_enabled & SOFT_WATCHDOG_ENABLED) && watchdog_thresh){
+			if (time_after(now, touch_ts + get_softlockup_thresh()))
+				return now - touch_ts;
+		}
+		return 0;
+	}
+
+This method returns current time in seconds approcimately.
+
+	static unsigned long get_timestamp(void)
+	{
+		return running_clock() >> 30LL;  /* 2^30 ~= 10^9 */
+	}
+
+
+Method given below is watchdog timer, which checks for soft lockup duration. If it is greater than zero it sends syslog message using pr_emerg(). Commented code and codes not relevant to this bug are not shown below. You can find complete implementation of all these functions "kernel/watchdog.c"
+
+	static enum hrtimer_restart watchdog_timer_fn(struct hrtimer *hrtimer)
+	{
+	
+		//Trimmed some lines of code which is no relevant to this bug
+		// ...
+		duration = is_softlockup(touch_ts);
+		if (unlikely(duration)) {
+			if (kvm_check_and_clear_guest_paused())
+				return HRTIMER_RESTART;
+
+			if (__this_cpu_read(soft_watchdog_warn) == true) {
+				if (__this_cpu_read(softlockup_task_ptr_saved) !=
+			    	current) {
+					__this_cpu_write(soft_watchdog_warn, false);
+					__touch_watchdog();
+				}
+				return HRTIMER_RESTART;
+			}
+
+			if (softlockup_all_cpu_backtrace) {
+				if (test_and_set_bit(0, &soft_lockup_nmi_warn)) {
+					__this_cpu_write(soft_watchdog_warn, true);
+					return HRTIMER_RESTART;
+				}
+			}
+
+			pr_emerg("BUG: soft lockup - CPU#%d stuck for %us! [%s:%d]\n",
+				smp_processor_id(), duration,
+				current->comm, task_pid_nr(current));
+		// ...
+	}
+	

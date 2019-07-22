@@ -1,0 +1,26 @@
+BUG6: Lock Debugging: detect incorrect freeing of live locks.
+-------------------------------------------------------------
+
+CONFIG_DEBUG_LOCK_ALLOC:
+This option can be found under Kenrel Hacking ----> Lock Debugging (spinlocks, mutexes, etc..). What this config option does when it is turned on is that detect incorrect freeing of locks. For my case, I have considered the case of when spin locks are incorrectly freed. Once such possibility is that, when we apply a spin lock and then forget to release this lock before returning back to the kernel. So once this scneario occurs, we get a warning message on dmesg stating that the lock was not released before returning it to the user space.
+
+
+HOW TO RUN?
+----------
+
+Now, once the above setup is ready. Now go to your CSE-506 folder, and do a make. This will generate all the ko file necessary. Then run this command: sh install_module.sh 6. 6 here is the argument; which signifies that this the bug6 (incorrect lock freeing detector). Now the sys_bug6 module is inserted in our kernel. Now trigger this system call by calling the xhw3 user space program by running ./xhw3 6. 6 is the argument passed here. Now, after running the above, when the function is successful and returns back to the user space after execution, go back to the kernel dmesg and tail the logs: you will see something like the below:
+
+[ 2182.119378] ================================================
+[ 2182.119457] WARNING: lock held when returning to user space!
+[ 2182.119537] 4.20.6+ #29 Tainted: G           OE    
+[ 2182.119606] ------------------------------------------------
+[ 2182.119685] xhw3/19260 is leaving the kernel with locks still held!
+[ 2182.119770] 1 lock held by xhw3/19260:
+[ 2182.119828]  #0: 00000000911a1ec1 (my_lock){....}, at: bug6+0xc/0xf [sys_bug6]
+
+IMPLEMENTATION OF SYS_BUG6.c
+-----------------------------
+
+We declare a lock variable my_lock on which we will apply the spinlock on. Now we will hold a spin lock on this variable till it does not complete execution of the critical section. In the critial section, we are setting the value of critical_section_var to 10. After this line, the critical section is completed. And ideally we would set free the lock before proceeding forward. But, in this case we wont' set the lock free and return to the user space without returning to the user space. It will display the error as above shown.
+
+REF: https://elixir.bootlin.com/linux/v4.20.6/source/arch/alpha/kernel/irq_i8259.c

@@ -1,0 +1,30 @@
+SYS_BUG10: Harden common str/mem functions against buffer overflows
+------------------------------------------------------------------
+
+CONFIG_FORTIFY_SOURCE:
+This option can be found in Security options ----> Harden common str/mem functions against buffer overflows. What this means is that after turning on this option, we will do overflow checks for strpy, memcpy, strcmp and memcpy functions. Suppose we have a char array of 5 characters thta is initially set to NULL. Now suppose we have a string b of length, say 8 and we try to do a strcpy/memcpy on the original string of length 5; then by default, if this option was OFF, then the kernel won't detect it as a bug and allow us to copy more length that will belong to some illegal adress space. By turning this feature on, these kinds of bugs will be detected in the kernel.
+
+
+HOW TO RUN?
+-----------
+
+Now, once the above setup is ready. Now go to your CSE-506 folder, and do a make. This will generate all the ko file necessary. Then run this command: sh install_module.sh 10. 10 here is the argument; which signifies that this the bug6 (overflow detector for str/mem functions). Now the sys_bug6 module is inserted in our kernel. Now trigger this system call by calling the xhw3 user space program by running ./xhw3 10. 10 is the argument passed here. Now after running the above, you will find that the kernel throws some error like (As shown below) and will kill the process.
+
+[  865.270774] installed new sys_bug10 module
+[  878.286175] detected buffer overflow in memcpy
+[  878.286546] ------------[ cut here ]------------
+[  878.286550] kernel BUG at lib/string.c:1053!
+[  878.286785] invalid opcode: 0000 [#1] SMP PTI
+[  878.286958] CPU: 1 PID: 6375 Comm: xhw3 Tainted: G           OE     4.20.6+ #30
+[  878.287212] Hardware name: VMware, Inc. VMware Virtual Platform/440BX Desktop Reference Platform, BIOS 6.00 09/21/2015
+[  878.287566] RIP: 0010:fortify_panic+0x11/0x14
+
+
+
+EXPlANATION OF SYS_BUG10.c
+-------------------------
+In this file, we have two character arrays: a and b. a is initially of size 5 and is not initialized. b is a string of length 8 and is initialised to abcdefghij. Now we will do a memcpy from string b to string a upto length of strlen(b). Now with the option turned on, it will throw an error as shown above.
+
+
+REF: https://elixir.bootlin.com/linux/v4.20.6/source/include/linux/string.h
+REF: https://elixir.bootlin.com/linux/v4.20.6/source/arch/x86/lib/memcpy_32.c

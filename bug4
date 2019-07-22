@@ -1,0 +1,128 @@
+BUG4 : DEADLOCK DETECTION 
+---------------------------------
+
+
+HOW TO RUN?
+---------------------------------
+1. Do make in CSE-506 folder.
+2. Load the module by running : sh install_module.sh 4
+3. Run : ./xhw3 4
+
+
+CONFIGS:
+---------------------------------
+Deadlock detection is a part of lockdep feature. So to enable lockdep, do below steps:
+1. Kernel Hacking -> Debug Locks and Hangs -> Detect Soft Lockups, Hard Lockups and Hung Tasks.
+2. Kernel Hacking -> Lock Debugging -> Lock Debugging : prove locking correctness.
+
+
+APPROACH:
+---------------------------------
+1. Create 2 threads in the code: mythread1 and mythread2. Run these threads from the main thread.
+2. mythread1 : 
+   mutex_lock(lock1);
+   sleep(100);
+   mutex_lock(lock2);    /* deadlock happens as lock2 held by thread2 */
+   mutex_unlock(lock2);
+   mutex_unlock(lock1);
+3. mythread2 :
+   mutex_lock(lock2);
+   sleep(100);
+   mutex_lock(lock1);    /* deadlock happens as lock1 held by thread1 */
+   mutex_unlock(lock1);
+   mutex_unlock(lock2);
+4. main thread will wait for both the threads to finish their execution.
+
+
+
+STACKTRACE:
+---------------------------------
+[   88.902825] installed new sys_bug4 module
+[   92.391799] sys_bug4 received arg 000000007dffc0dd
+[   92.392213] Thread1 started
+[   92.392476] Thread1 going to sleep for 100 seconds
+[   92.393085] Thread2 started
+[   92.394876] Thread2 going to sleep for 100 seconds
+
+[  184.132071] RBP: 00007ffc935857c0 R08: 0000000000000000 R09: 00007ffc935858a8
+[  184.132072] R10: 00007fe9927fd060 R11: 0000000000000206 R12: 00000000004005c0
+[  184.132074] R13: 00007ffc935858a0 R14: 0000000000000000 R15: 0000000000000000
+[  193.628866] Thread2 wakes up after sleeping for 100 seconds
+[  193.628971] Thread1 wakes up after sleeping for 100 seconds
+
+[  193.629085] ======================================================
+[  193.629298] WARNING: possible circular locking dependency detected
+[  193.629513] 4.20.6+ #7 Tainted: G           OEL   
+[  193.629686] ------------------------------------------------------
+[  193.629906] thread1_name/4555 is trying to acquire lock:
+[  193.630111] 00000000186ef0bf (lock2){+.+.}, at: mythread1+0x49/0x80 [sys_bug4]
+[  193.630364] 
+but task is already holding lock:
+[  193.630564] 000000008b618c95 (lock1){+.+.}, at: mythread1+0xe/0x80 [sys_bug4]
+[  193.630807] 
+which lock already depends on the new lock.
+
+[  193.631181] 
+the existing dependency chain (in reverse order) is:
+[  193.631501] 
+-> #1 (lock1){+.+.}:
+[  193.631695]        mythread2+0x49/0xb0 [sys_bug4]
+[  193.631884]        kthread+0xf3/0x130
+[  193.632042]        ret_from_fork+0x3a/0x50
+[  193.632207] 
+-> #0 (lock2){+.+.}:
+[  193.632409]        __mutex_lock+0x5c/0x830
+[  193.632577]        mythread1+0x49/0x80 [sys_bug4]
+[  193.632761]        kthread+0xf3/0x130
+[  193.632916]        ret_from_fork+0x3a/0x50
+[  193.633081] 
+other info that might help us debug this:
+[  193.633365]  Possible unsafe locking scenario:
+
+[  193.633585]        CPU0                    CPU1
+[  193.633761]        ----                    ----
+[  193.633937]   lock(lock1);
+[  193.634063]                                lock(lock2);
+[  193.634268]                                lock(lock1);
+[  193.634464]   lock(lock2);
+[  193.634591] 
+ *** DEADLOCK ***
+
+ [  193.634837] 1 lock held by thread1_name/4555:
+[  193.635013]  #0: 000000008b618c95 (lock1){+.+.}, at: mythread1+0xe/0x80 [sys_bug4]
+[  193.635294] 
+stack backtrace:
+[  193.635478] CPU: 0 PID: 4555 Comm: thread1_name Tainted: G           OEL    4.20.6+ #7
+[  193.635761] Hardware name: VMware, Inc. VMware Virtual Platform/440BX Desktop Reference Platform, BIOS 6.00 09/21/2015
+[  193.636120] Call Trace:
+[  193.636252]  dump_stack+0x5e/0x8b
+[  193.636402]  print_circular_bug.isra.32+0x28e/0x29b
+[  193.636605]  __lock_acquire+0x1807/0x1870
+[  193.636842]  lock_acquire+0xb5/0x190
+[  193.637086]  ? mythread1+0x49/0x80 [sys_bug4]
+[  193.637345]  __mutex_lock+0x5c/0x830
+[  193.637544]  ? mythread1+0x49/0x80 [sys_bug4]
+[  193.637719]  ? vprintk_emit+0x105/0x300
+[  193.637879]  ? schedule_timeout+0x1d9/0x480
+[  193.638048]  ? mythread1+0x49/0x80 [sys_bug4]
+[  193.638222]  ? printk+0x53/0x6a
+[  193.638362]  mythread1+0x49/0x80 [sys_bug4]
+[  193.638532]  kthread+0xf3/0x130
+[  193.638673]  ? 0xffffffffc0466000
+[  193.638819]  ? kthread_park+0x80/0x80
+[  193.638974]  ret_from_fork+0x3a/0x50
+
+
+
+
+REFERENCES:
+--------------------------------
+1. http://tuxthink.blogspot.com/2011/02/kernel-thread-creation-1.html
+2. http://www.cs.fsu.edu/~cop4610t/lecture
+3. https://stackoverflow.com/questions/20892822/how-to-use-lockdep-feature-in-linux-kernel-for-deadlock-detection?rq=1
+4. https://kernel.readthedocs.io/en/sphinx-samples/kernel-locking.html
+5. https://stackoverflow.com/questions/20892822/how-to-use-lockdep-feature-in-linux-kernel-for-deadlock-detection
+
+
+
+------------------------------------------------------------------------------------END--------------------------------------------------------------------------------------------------------------------

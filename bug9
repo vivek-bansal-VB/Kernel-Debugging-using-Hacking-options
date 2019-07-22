@@ -1,0 +1,82 @@
+BUG9 - DETECT WORKQUEUE STALLS
+----------------------------------------
+
+
+HOW TO RUN?
+---------------------------------------
+1. Do make in CSE-506.
+2. Load the Module : sh install_module.sh 9
+3. Run : ./xhw3 9
+
+
+CONFIGS:
+---------------------------------------
+Kernel Hacking -> Debug Lockups and Hangs -> Detect WorkQueue Stalls
+
+
+APPROACH:
+---------------------------------------
+int n = 10000;
+for (int i = 0; i < n; i++)
+	for(int j = 0; j < n; j++)
+		printk("Detect workqueue stalls");
+Whenever very intensive computational work is happening, then this task stalls the entire workqueue.
+
+
+STACKTRACE:
+---------------------------------------
+[  520.950166] RSP: 0018:ffffb8c4c0927ec0 EFLAGS: 00000202 ORIG_RAX: ffffffffffffff13
+[  520.950168] RAX: 0000000000000001 RBX: 000000000153b010 RCX: 0000000000000006
+[  520.950168] RDX: 0000000000000000 RSI: 0000000000000086 RDI: ffff9888bbb15510
+[  520.950169] RBP: 000000000000015a R08: 00000000000e3888 R09: 00000000000023ed
+[  520.950170] R10: ffffffff907992a4 R11: 00000000000023ec R12: 0000000000000000
+[  520.950170] R13: 0000000000000000 R14: 0000000000000000 R15: 0000000000000000
+[  520.950174]  do_syscall_64+0x7b/0x312
+[  520.950177]  entry_SYSCALL_64_after_hwframe+0x44/0xa9
+[  520.950180] RIP: 0033:0x7f48cd1f81c9
+[  520.950182] Code: 01 00 48 81 c4 80 00 00 00 e9 f1 fe ff ff 0f 1f 00 48 89 f8 48 89 f7 48 89 d6 48 89 ca 4d 89 c2 4d 89 c8 4c 8b 4c 24 08 0f 05 <48> 3d 01 f0 ff ff 73 01 c3 48 8b 0d 97 dc 2c 00 f7 d8 64 89 01 48
+[  520.950182] RSP: 002b:00007ffced5dd6e8 EFLAGS: 00000206 ORIG_RAX: 000000000000015a
+[  520.950184] RAX: ffffffffffffffda RBX: 0000000000000000 RCX: 00007f48cd1f81c9
+[  520.950184] RDX: 000000006b657669 RSI: 0000000065766976 RDI: 000000000153b010
+[  520.950185] RBP: 00007ffced5dd720 R08: 0000000000000005 R09: 00007ffced5dd808
+[  520.950186] R10: 000000000153b000 R11: 0000000000000206 R12: 0000000000400670
+[  520.950186] R13: 00007ffced5dd800 R14: 0000000000000000 R15: 0000000000000000
+[  522.834708] BUG: workqueue lockup - pool cpus=1 node=0 flags=0x0 nice=0 stuck for 301s!
+[  522.834880] Showing busy workqueues and worker pools:
+[  522.834881] workqueue events: flags=0x0
+[  522.834882]   pwq 2: cpus=1 node=0 flags=0x0 nice=0 active=2/256
+[  522.834884]     pending: console_callback, e1000_watchdog
+[  522.834893] workqueue mm_percpu_wq: flags=0x8
+[  522.834893]   pwq 2: cpus=1 node=0 flags=0x0 nice=0 active=1/256
+[  522.834895]     pending: vmstat_update
+[  553.042736] BUG: workqueue lockup - pool cpus=1 node=0 flags=0x0 nice=0 stuck for 332s!
+[  553.042909] Showing busy workqueues and worker pools:
+[  553.042910] workqueue events: flags=0x0
+[  553.042910]   pwq 2: cpus=1 node=0 flags=0x0 nice=0 active=2/256
+[  553.042913]     pending: console_callback, e1000_watchdog
+[  553.042925] workqueue mm_percpu_wq: flags=0x8
+[  553.042925]   pwq 2: cpus=1 node=0 flags=0x0 nice=0 active=1/256
+[  553.042927]     pending: vmstat_update
+[  583.250731] BUG: workqueue lockup - pool cpus=1 node=0 flags=0x0 nice=0 stuck for 362s!
+[  583.250856] Showing busy workqueues and worker pools:
+[  583.250857] workqueue events: flags=0x0
+[  583.250858]   pwq 2: cpus=1 node=0 flags=0x0 nice=0 active=2/256
+[  583.250860]     pending: console_callback, e1000_watchdog
+[  583.250869] workqueue mm_percpu_wq: flags=0x8
+[  583.250869]   pwq 2: cpus=1 node=0 flags=0x0 nice=0 active=1/256
+[  583.250871]     pending: vmstat_update
+
+
+
+REFERENCES:
+---------------------------------------
+1. http://tuxthink.blogspot.com/2011/02/kernel-thread-creation-1.html
+2. http://www.cs.fsu.edu/~cop4610t/lectures/project2/kthreads/kthreads.pdf
+3. https://stackoverflow.com/questions/20892822/how-to-use-lockdep-feature-in-linux-kernel-for-deadlock-detection?rq=1
+4. https://kernel.readthedocs.io/en/sphinx-samples/kernel-locking.html
+5. https://stackoverflow.com/questions/20892822/how-to-use-lockdep-feature-in-linux-kernel-for-deadlock-detection
+
+
+
+
+-------------------------------------------------------------------------------------END-------------------------------------------------------------------------------------------------------------------

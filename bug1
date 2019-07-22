@@ -1,0 +1,29 @@
+SYS_BUG1: KERNEL MEMORY LEAK DETECTOR
+-------------------------------------
+
+CONFIG_DEBUG_KMEMLEAK:
+This config option can be found under Kernel Hacking -----> Memory Debugging -----> Kernel Memory Leak Detector. After turning on this option another option comes up: which is the maximum kmemleak early log entries. By default, it's value is set to 400. But we change this value to 1200 (or to some sufficiently large number as per your choice) as the default value may not work properly in all the configurations. Now, after turning this option, re-build the kernel. After rebuilding the kernel and rebooting it, you can check whether the debugfs file system is mounted or not in your system. It should be mounted automatically by now, but just in case it is not, then you need to mount it manually  by mount -t debugfs nodev /sys/kernel/debug. Now all the kmemleaks encountered in the system is written to this file cat /sys/kernel/debug/kmemleak. If the config option is not turned on, then this file does not exists in your system i.e. this file is created only after turning the CONFIG_DEBUG_KMEMLEAK option on.
+
+
+HOW TO RUN?
+-----------
+Now, once the above setup is ready. Now go to your CSE-506 folder, and do a make. This will generate all the ko file necessary. Then run this command: sh install_module.sh 1. 1 here is the argument; which signifies that this the bug1 (kmemleak detector). Now the sys_bug1 module is inserted in our kernel. Now trigger this system call by calling the xhw3 user space program by running ./xhw3 1. 1 is the argument passed here. Now, the kmemleak detector is periodic and runs after a fixed interval. If you want to detect memleaks at that moment you can run this command: echo scan > /sys/kernel/debug/kmemleak. This will run  the kernel memory detection thread immediately and will scan the system for any such leaks. This typically takes some seconds before you can see the kmemleak log caused because of our sys_bug1 system call as it checks the entire system for memory leaks and is thus time consuming. You will encounter the following error, if any, on memory leak:
+
+unreferenced object 0xffff910eb4420650 (size 16):
+  comm "xhw3", pid 4832, jiffies 4295231848 (age 38.976s)
+  hex dump (first 16 bytes):
+    60 06 42 b4 0e 91 ff ff 25 00 00 00 00 00 00 00  `.B.....%.......
+  backtrace:
+    [<00000000df3eb1db>] do_syscall_64+0x7b/0x3a7
+    [<00000000f7f3c9d8>] entry_SYSCALL_64_after_hwframe+0x44/0xa9
+    [<000000009321bd46>] 0xffffffffffffffff
+
+
+EXPLANATION OF SYS_BUG1.c
+-------------------------
+
+in this file, we are doing a very simple check. We declare char *name varibale and allocate 10 bytes of memory to it using kmalloc. We perform some sanity checks for ENOMEM and once memory is allocated to it we simply return back to the user before doing a kfree(name).
+
+
+REF: https://www.kernel.org/doc/html/latest/dev-tools/kmemleak.html
+REF: https://elixir.bootlin.com/linux/v4.20.6/ident 
